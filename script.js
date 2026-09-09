@@ -8,6 +8,22 @@ let armedTool = null;         // 'text' | 'emoji' | null
 let armedEmoji = null;
 let stickerCount = 0;
 
+// photo adjustment state
+let zoomLevel = 1;
+let panOffsetX = 0;           // in source-image pixels
+let panOffsetY = 0;
+let imageLocked = false;      // true once a border/text/emoji has been baked in
+let isDragging = false;
+let dragMoved = false;
+let dragStartX = 0, dragStartY = 0;
+let dragStartPanX = 0, dragStartPanY = 0;
+let lastSw = 0, lastSh = 0;   // source crop size from the most recent render, for pan math
+
+// undo history: each entry snapshots the canvas + relevant state right
+// before a border/text/emoji was added, so it can be popped off to remove
+// just that last addition.
+let historyStack = [];
+
 // ===== Elements =====
 const dropZone = document.getElementById('dropZone');
 const fileInput = document.getElementById('fileInput');
@@ -23,29 +39,81 @@ const downloadBtn = document.getElementById('downloadBtn');
 const stickerSheet = document.getElementById('stickerSheet');
 const emptyState = document.getElementById('emptyState');
 const canvasHint = document.getElementById('canvasHint');
+const zoomSlider = document.getElementById('zoomSlider');
+const adjustRow = document.getElementById('adjustRow');
+const undoBtn = document.getElementById('undoBtn');
 
 // ===== Helpers =====
 function clearCanvas(){
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 }
 
-function drawImageCover(img){
-  clearCanvas();
+// Snapshot the canvas + adjustable-photo state before an edit (border/text/
+// emoji) so that edit can be undone on its own later.
+function pushHistory(){
+  const snapshot = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  historyStack.push({
+    imageData: snapshot,
+    priorState: { imageLocked, zoomLevel, panOffsetX, panOffsetY }
+  });
+  updateUndoButton();
+}
+
+function updateUndoButton(){
+  undoBtn.disabled = historyStack.length === 0;
+}
+
+undoBtn.addEventListener('click', () => {
+  if (historyStack.length === 0) return;
+  const entry = historyStack.pop();
+  ctx.putImageData(entry.imageData, 0, 0);
+
+  imageLocked = entry.priorState.imageLocked;
+  zoomLevel = entry.priorState.zoomLevel;
+  panOffsetX = entry.priorState.panOffsetX;
+  panOffsetY = entry.priorState.panOffsetY;
+  zoomSlider.value = zoomLevel;
+
+  if (currentImage && !imageLocked){
+    adjustRow.style.display = 'flex';
+    canvas.classList.add('draggable');
+  } else {
+    adjustRow.style.display = 'none';
+    canvas.classList.remove('draggable');
+  }
+  updateUndoButton();
+});
+
+// Renders currentImage into the canvas honoring zoomLevel + panOffset,
+// so the person can reposition/zoom the photo before locking it in.
+function renderImage(){
+  if (!currentImage || imageLocked) return;
+  const img = currentImage;
   const cw = canvas.width, ch = canvas.height;
   const ir = img.width / img.height;
   const cr = cw / ch;
-  let sx, sy, sw, sh;
-  if (ir > cr){
-    sh = img.height;
-    sw = sh * cr;
-    sx = (img.width - sw) / 2;
-    sy = 0;
-  } else {
-    sw = img.width;
-    sh = sw / cr;
-    sx = 0;
-    sy = (img.height - sh) / 2;
-  }
+
+  // base "cover" crop size (fills the canvas with no zoom)
+  let baseSw, baseSh;
+  if (ir > cr){ baseSh = img.height; baseSw = baseSh * cr; }
+  else { baseSw = img.width; baseSh = baseSw / cr; }
+
+  // zooming in means cropping a smaller source rectangle
+  const sw = baseSw / zoomLevel;
+  const sh = baseSh / zoomLevel;
+
+  // clamp pan so we never crop outside the image bounds
+  const maxPanX = (img.width - sw) / 2;
+  const maxPanY = (img.height - sh) / 2;
+  panOffsetX = Math.max(-maxPanX, Math.min(maxPanX, panOffsetX));
+  panOffsetY = Math.max(-maxPanY, Math.min(maxPanY, panOffsetY));
+
+  const sx = (img.width - sw) / 2 - panOffsetX;
+  const sy = (img.height - sh) / 2 - panOffsetY;
+
+  lastSw = sw; lastSh = sh;
+
+  clearCanvas();
   ctx.drawImage(img, sx, sy, sw, sh, 0, 0, cw, ch);
 }
 
@@ -56,7 +124,16 @@ function loadImageFile(file){
     const img = new Image();
     img.onload = () => {
       currentImage = img;
-      drawImageCover(img);
+      zoomLevel = 1;
+      panOffsetX = 0;
+      panOffsetY = 0;
+      imageLocked = false;
+      zoomSlider.value = 1;
+      adjustRow.style.display = 'flex';
+      canvas.classList.add('draggable');
+      historyStack = [];
+      updateUndoButton();
+      renderImage();
     };
     img.src = e.target.result;
   };
@@ -85,6 +162,48 @@ dropZone.addEventListener('drop', (e) => {
   loadImageFile(file);
 });
 
+// ===== Drag to reposition photo =====
+canvas.addEventListener('pointerdown', (e) => {
+  if (!currentImage || imageLocked) return;
+  isDragging = true;
+  dragMoved = false;
+  dragStartX = e.clientX;
+  dragStartY = e.clientY;
+  dragStartPanX = panOffsetX;
+  dragStartPanY = panOffsetY;
+  canvas.classList.add('dragging');
+  canvas.setPointerCapture(e.pointerId);
+});
+
+canvas.addEventListener('pointermove', (e) => {
+  if (!isDragging) return;
+  const rect = canvas.getBoundingClientRect();
+  const dx = e.clientX - dragStartX;
+  const dy = e.clientY - dragStartY;
+  if (Math.abs(dx) > 3 || Math.abs(dy) > 3) dragMoved = true;
+
+  // convert CSS-pixel drag distance into source-image-pixel distance
+  const sourcePerCssX = lastSw / rect.width;
+  const sourcePerCssY = lastSh / rect.height;
+  panOffsetX = dragStartPanX + dx * sourcePerCssX;
+  panOffsetY = dragStartPanY + dy * sourcePerCssY;
+  renderImage();
+});
+
+['pointerup','pointerleave','pointercancel'].forEach(evt =>
+  canvas.addEventListener(evt, () => {
+    isDragging = false;
+    canvas.classList.remove('dragging');
+  })
+);
+
+// ===== Zoom slider =====
+zoomSlider.addEventListener('input', () => {
+  if (!currentImage || imageLocked) return;
+  zoomLevel = parseFloat(zoomSlider.value);
+  renderImage();
+});
+
 // ===== Border color swatches =====
 borderSwatches.addEventListener('click', (e) => {
   const btn = e.target.closest('.swatch');
@@ -104,8 +223,20 @@ addBorderBtn.addEventListener('click', () => {
   const cw = canvas.width, ch = canvas.height;
   const snapshot = ctx.getImageData(0, 0, cw, ch);
 
+  // remember the pre-border state so it can be undone later
+  historyStack.push({
+    imageData: snapshot,
+    priorState: { imageLocked, zoomLevel, panOffsetX, panOffsetY }
+  });
+  updateUndoButton();
+
   const inset = 18;      // how far the photo shrinks in
   const radius = 40;     // rounded corner radius
+
+  // once the border is baked in, lock further photo repositioning
+  imageLocked = true;
+  canvas.classList.remove('draggable');
+  adjustRow.style.display = 'none';
 
   clearCanvas();
 
@@ -166,6 +297,7 @@ emojiRow.addEventListener('click', (e) => {
 
 // ===== Canvas click to place text/emoji =====
 canvas.addEventListener('click', (e) => {
+  if (dragMoved) { dragMoved = false; return; } // this click was actually the end of a drag
   if (!armedTool) return;
   const rect = canvas.getBoundingClientRect();
   const scaleX = canvas.width / rect.width;
@@ -176,6 +308,7 @@ canvas.addEventListener('click', (e) => {
   if (armedTool === 'text'){
     const label = textInput.value.trim();
     if (!label) return;
+    pushHistory();
     ctx.font = "700 34px 'Baloo 2', sans-serif";
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -185,6 +318,7 @@ canvas.addEventListener('click', (e) => {
     ctx.fillStyle = '#3A2E4D';
     ctx.fillText(label, x, y);
   } else if (armedTool === 'emoji'){
+    pushHistory();
     ctx.font = '48px serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -197,7 +331,16 @@ resetBtn.addEventListener('click', () => {
   currentImage = null;
   armedTool = null;
   armedEmoji = null;
+  zoomLevel = 1;
+  panOffsetX = 0;
+  panOffsetY = 0;
+  imageLocked = false;
+  zoomSlider.value = 1;
+  adjustRow.style.display = 'none';
+  canvas.classList.remove('draggable', 'dragging');
   textInput.value = '';
+  historyStack = [];
+  updateUndoButton();
   [...emojiRow.children].forEach(c => c.classList.remove('selected'));
   clearCanvas();
   canvasHint.textContent = 'Click the canvas to place text or emoji ✍️';
