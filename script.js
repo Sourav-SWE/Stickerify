@@ -43,6 +43,59 @@ const zoomSlider = document.getElementById('zoomSlider');
 const adjustRow = document.getElementById('adjustRow');
 const undoBtn = document.getElementById('undoBtn');
 
+// ===== Upload interactions (registered first, so a problem anywhere else
+// in this file can never prevent choosing a photo from working) =====
+function loadImageFile(file){
+  if (!file || !file.type.startsWith('image/')) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      currentImage = img;
+      zoomLevel = 1;
+      panOffsetX = 0;
+      panOffsetY = 0;
+      imageLocked = false;
+      if (zoomSlider) zoomSlider.value = 1;
+      if (adjustRow) adjustRow.style.display = 'flex';
+      canvas.classList.add('draggable');
+      historyStack = [];
+      updateUndoButton();
+      renderImage();
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+browseBtn.addEventListener('click', (e) => {
+  e.stopPropagation(); // don't also trigger dropZone's own click handler below
+  fileInput.click();
+});
+dropZone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', (e) => {
+  loadImageFile(e.target.files[0]);
+  fileInput.value = ''; // allow re-choosing the same file later
+});
+
+['dragenter','dragover'].forEach(evt =>
+  dropZone.addEventListener(evt, (e) => {
+    e.preventDefault();
+    dropZone.classList.add('dragover');
+  })
+);
+['dragleave','drop'].forEach(evt =>
+  dropZone.addEventListener(evt, (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+  })
+);
+dropZone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  const file = e.dataTransfer.files[0];
+  loadImageFile(file);
+});
+
 // ===== Helpers =====
 function clearCanvas(){
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -60,29 +113,31 @@ function pushHistory(){
 }
 
 function updateUndoButton(){
-  undoBtn.disabled = historyStack.length === 0;
+  if (undoBtn) undoBtn.disabled = historyStack.length === 0;
 }
 
-undoBtn.addEventListener('click', () => {
-  if (historyStack.length === 0) return;
-  const entry = historyStack.pop();
-  ctx.putImageData(entry.imageData, 0, 0);
+if (undoBtn){
+  undoBtn.addEventListener('click', () => {
+    if (historyStack.length === 0) return;
+    const entry = historyStack.pop();
+    ctx.putImageData(entry.imageData, 0, 0);
 
-  imageLocked = entry.priorState.imageLocked;
-  zoomLevel = entry.priorState.zoomLevel;
-  panOffsetX = entry.priorState.panOffsetX;
-  panOffsetY = entry.priorState.panOffsetY;
-  zoomSlider.value = zoomLevel;
+    imageLocked = entry.priorState.imageLocked;
+    zoomLevel = entry.priorState.zoomLevel;
+    panOffsetX = entry.priorState.panOffsetX;
+    panOffsetY = entry.priorState.panOffsetY;
+    if (zoomSlider) zoomSlider.value = zoomLevel;
 
-  if (currentImage && !imageLocked){
-    adjustRow.style.display = 'flex';
-    canvas.classList.add('draggable');
-  } else {
-    adjustRow.style.display = 'none';
-    canvas.classList.remove('draggable');
-  }
-  updateUndoButton();
-});
+    if (currentImage && !imageLocked){
+      if (adjustRow) adjustRow.style.display = 'flex';
+      canvas.classList.add('draggable');
+    } else {
+      if (adjustRow) adjustRow.style.display = 'none';
+      canvas.classList.remove('draggable');
+    }
+    updateUndoButton();
+  });
+}
 
 // Renders currentImage into the canvas honoring zoomLevel + panOffset,
 // so the person can reposition/zoom the photo before locking it in.
@@ -116,57 +171,6 @@ function renderImage(){
   clearCanvas();
   ctx.drawImage(img, sx, sy, sw, sh, 0, 0, cw, ch);
 }
-
-function loadImageFile(file){
-  if (!file || !file.type.startsWith('image/')) return;
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    const img = new Image();
-    img.onload = () => {
-      currentImage = img;
-      zoomLevel = 1;
-      panOffsetX = 0;
-      panOffsetY = 0;
-      imageLocked = false;
-      zoomSlider.value = 1;
-      adjustRow.style.display = 'flex';
-      canvas.classList.add('draggable');
-      historyStack = [];
-      updateUndoButton();
-      renderImage();
-    };
-    img.src = e.target.result;
-  };
-  reader.readAsDataURL(file);
-}
-
-// ===== Upload interactions =====
-browseBtn.addEventListener('click', (e) => {
-  e.stopPropagation(); // don't also trigger dropZone's own click handler below
-  fileInput.click();
-});
-dropZone.addEventListener('click', () => fileInput.click());
-fileInput.addEventListener('change', (e) => {
-  loadImageFile(e.target.files[0]);
-  fileInput.value = ''; // allow re-choosing the same file later
-});
-
-['dragenter','dragover'].forEach(evt =>
-  dropZone.addEventListener(evt, (e) => {
-    e.preventDefault();
-    dropZone.classList.add('dragover');
-  })
-);
-['dragleave','drop'].forEach(evt =>
-  dropZone.addEventListener(evt, (e) => {
-    e.preventDefault();
-    dropZone.classList.remove('dragover');
-  })
-);
-dropZone.addEventListener('drop', (e) => {
-  const file = e.dataTransfer.files[0];
-  loadImageFile(file);
-});
 
 // ===== Drag to reposition photo =====
 canvas.addEventListener('pointerdown', (e) => {
