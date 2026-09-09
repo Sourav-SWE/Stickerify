@@ -141,9 +141,15 @@ function loadImageFile(file){
 }
 
 // ===== Upload interactions =====
-browseBtn.addEventListener('click', () => fileInput.click());
+browseBtn.addEventListener('click', (e) => {
+  e.stopPropagation(); // don't also trigger dropZone's own click handler below
+  fileInput.click();
+});
 dropZone.addEventListener('click', () => fileInput.click());
-fileInput.addEventListener('change', (e) => loadImageFile(e.target.files[0]));
+fileInput.addEventListener('change', (e) => {
+  loadImageFile(e.target.files[0]);
+  fileInput.value = ''; // allow re-choosing the same file later
+});
 
 ['dragenter','dragover'].forEach(evt =>
   dropZone.addEventListener(evt, (e) => {
