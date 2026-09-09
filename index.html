@@ -41,6 +41,11 @@
       <div class="canvas-wrap">
         <canvas id="stickerCanvas" width="480" height="480"></canvas>
         <div id="canvasHint" class="canvas-hint">Click the canvas to place text or emoji ✍️</div>
+
+        <div class="adjust-row" id="adjustRow">
+          <label class="tool-label" for="zoomSlider">Drag photo to reposition · Zoom</label>
+          <input type="range" id="zoomSlider" min="1" max="3" step="0.05" value="1" />
+        </div>
       </div>
 
       <h2 class="section-title">2. Decorate it</h2>
@@ -83,6 +88,7 @@
 
       <div class="action-row">
         <button id="resetBtn" class="btn btn-ghost">Start over ↺</button>
+        <button id="undoBtn" class="btn btn-ghost" disabled>Undo last add ↶</button>
         <button id="saveToSheetBtn" class="btn btn-secondary">Save to sticker sheet 📥</button>
         <button id="downloadBtn" class="btn btn-primary">Download sticker ⬇️</button>
       </div>
