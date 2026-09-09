@@ -1,1 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Stickerfy — Turn Photos Into Stickers</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
 
+  <!-- NAV -->
+  <header class="nav">
+    <div class="nav-inner">
+      <div class="logo">
+        <span class="logo-icon">✨</span>
+        <span class="logo-text">Stickerfy</span>
+      </div>
+      <p class="tagline">Make stickers out of your favorite photos</p>
+    </div>
+  </header>
+
+  <!-- MAIN APP -->
+  <main class="app">
+
+    <!-- LEFT: WORKSPACE -->
+    <section class="workspace card">
+      <h2 class="section-title">1. Bring in a photo</h2>
+
+      <div id="dropZone" class="drop-zone">
+        <input type="file" id="fileInput" accept="image/*" hidden />
+        <div class="drop-content">
+          <span class="drop-icon">📸</span>
+          <p><strong>Drag & drop</strong> a photo here</p>
+          <p class="drop-sub">or</p>
+          <button id="browseBtn" class="btn btn-primary">Choose a photo</button>
+        </div>
+      </div>
+
+      <div class="canvas-wrap">
+        <canvas id="stickerCanvas" width="480" height="480"></canvas>
+        <div id="canvasHint" class="canvas-hint">Click the canvas to place text or emoji ✍️</div>
+      </div>
+
+      <h2 class="section-title">2. Decorate it</h2>
+      <div class="toolbar">
+
+        <div class="tool-group">
+          <label class="tool-label">Sticker border</label>
+          <div class="swatches" id="borderSwatches">
+            <button class="swatch" style="background:#ffffff" data-color="#ffffff" title="White"></button>
+            <button class="swatch" style="background:#FF6B6B" data-color="#FF6B6B" title="Coral"></button>
+            <button class="swatch" style="background:#FFD93D" data-color="#FFD93D" title="Sunny"></button>
+            <button class="swatch" style="background:#06D6A0" data-color="#06D6A0" title="Mint"></button>
+            <button class="swatch" style="background:#A855F7" data-color="#A855F7" title="Grape"></button>
+            <button class="swatch" style="background:#4EA8DE" data-color="#4EA8DE" title="Sky"></button>
+          </div>
+          <button id="addBorderBtn" class="btn btn-secondary">Add border ✂️</button>
+        </div>
+
+        <div class="tool-group">
+          <label class="tool-label" for="textInput">Add text</label>
+          <div class="text-row">
+            <input type="text" id="textInput" placeholder="Type something fun..." maxlength="24" />
+            <button id="armTextBtn" class="btn btn-secondary">Place text 🔤</button>
+          </div>
+        </div>
+
+        <div class="tool-group">
+          <label class="tool-label">Add emoji</label>
+          <div class="emoji-row" id="emojiRow">
+            <button class="emoji-btn" data-emoji="😂">😂</button>
+            <button class="emoji-btn" data-emoji="🔥">🔥</button>
+            <button class="emoji-btn" data-emoji="⭐">⭐</button>
+            <button class="emoji-btn" data-emoji="💖">💖</button>
+            <button class="emoji-btn" data-emoji="🎉">🎉</button>
+            <button class="emoji-btn" data-emoji="😎">😎</button>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="action-row">
+        <button id="resetBtn" class="btn btn-ghost">Start over ↺</button>
+        <button id="saveToSheetBtn" class="btn btn-secondary">Save to sticker sheet 📥</button>
+        <button id="downloadBtn" class="btn btn-primary">Download sticker ⬇️</button>
+      </div>
+    </section>
+
+    <!-- RIGHT: STICKER SHEET -->
+    <section class="sheet card">
+      <h2 class="section-title">Your sticker sheet</h2>
+      <p class="sheet-sub">Every sticker you save shows up here</p>
+      <div id="stickerSheet" class="sticker-grid">
+        <div class="empty-state" id="emptyState">
+          <span class="empty-icon">🌈</span>
+          <p>No stickers yet — make your first one!</p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="footer">
+    <p>Made with 💛 — snap it, sticker it, share it.</p>
+  </footer>
+
+<script src="script.js"></script>
+</body>
+</html>
